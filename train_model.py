@@ -1,12 +1,13 @@
+import torch
 import torchvision.transforms as tt
+from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from torchvision.utils import make_grid
-from torch.utils.data import DataLoader
 
 import matplotlib.pyplot as plt
 
-image_train_dir = "./data" # need to be data/train and data/val but idk why
-image_val_dir = "./data"
+image_train_dir = "./data/train"
+image_val_dir = "./data/val"
 image_size = 64
 batch_size = 20
 stats = (0.5, 0.5, 0.5), (0.5, 0.5, 0.5)
@@ -41,8 +42,8 @@ valid_tfms = tt.Compose(
 )
 
 # PyTorch datasets
-train_ds = ImageFolder(image_train_dir, train_tfms)
-valid_ds = ImageFolder(image_val_dir, valid_tfms)
+train_ds = ImageFolder(image_train_dir, transform=train_tfms)
+valid_ds = ImageFolder(image_val_dir, transform=valid_tfms)
 train_dl = DataLoader(
     train_ds, batch_size, shuffle=True, num_workers=8, pin_memory=True
 )
@@ -69,5 +70,44 @@ def show_batch(dl, nmax=64):
         break
 
 
-show_batch(train_dl)
-plt.show()
+# show_batch(train_dl)
+# plt.show()
+
+
+def get_default_device():
+    """Pick GPU if available, else CPU"""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    else:
+        return torch.device("cpu")
+
+
+def to_device(data, device):
+    """Move tensors to chosen device"""
+    if isinstance(data, (list, tuple)):
+        return [to_device(x, device) for x in data]
+    return data.to(device, non_blocking=True)
+
+
+class DeviceDataLoader:
+    """Wrap a dataloader to move data to a device"""
+
+    def __init__(self, dl, device):
+        self.dl = dl
+        self.device = device
+
+    def __iter__(self):
+        """Yield a batch of data after moving it to device"""
+        for b in self.dl:
+            yield to_device(b, self.device)
+
+    def __len__(self):
+        """Number of batches"""
+        return len(self.dl)
+
+device = get_default_device()
+train_dl = DeviceDataLoader(train_dl, device)
+valid_dl = DeviceDataLoader(valid_dl, device)
+
+
+
